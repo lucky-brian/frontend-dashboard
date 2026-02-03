@@ -155,28 +155,30 @@ export async function getLatestConventionLogs(): Promise<
   const supabase = createClient();
   const { data, error } = await supabase
     .from("convention_logs")
-    .select(
-      `
-      id,
-      log_date,
-      member_id,
-      type,
-      topic_id,
-      action_rule_id,
-      sprint,
-      notes,
-      created_at,
-      frontend_member(name),
-      topic_convention_option(title),
-      action_rules(label)
-    `
-    )
+    .select(conventionLogsSelect)
     .order("created_at", { ascending: false })
     .limit(10);
   if (error) throw error;
+  return normalizeLogRows(data ?? []);
+}
 
-  const rows = data ?? [];
-  return rows.map((row: Record<string, unknown>) => {
+const conventionLogsSelect = `
+  id,
+  log_date,
+  member_id,
+  type,
+  topic_id,
+  action_rule_id,
+  sprint,
+  notes,
+  created_at,
+  frontend_member(name),
+  topic_convention_option(title),
+  action_rules(label)
+`;
+
+function normalizeLogRows(data: Record<string, unknown>[]): ConventionLogWithDetails[] {
+  return data.map((row: Record<string, unknown>) => {
     const fm = row.frontend_member;
     const tco = row.topic_convention_option;
     const ar = row.action_rules;
@@ -187,4 +189,21 @@ export async function getLatestConventionLogs(): Promise<
       action_rules: Array.isArray(ar) ? ar[0] ?? null : (ar as ConventionLogWithDetails["action_rules"]),
     };
   }) as ConventionLogWithDetails[];
+}
+
+/** ดึง convention logs ตามช่วงวันที่ (พร้อมชื่อ member, topic, action) */
+export async function getConventionLogsByDateRange(
+  startDate: string,
+  endDate: string
+): Promise<ConventionLogWithDetails[]> {
+  const supabase = createClient();
+  const { data, error } = await supabase
+    .from("convention_logs")
+    .select(conventionLogsSelect)
+    .gte("log_date", startDate)
+    .lte("log_date", endDate)
+    .order("log_date", { ascending: false })
+    .order("created_at", { ascending: false });
+  if (error) throw error;
+  return normalizeLogRows(data ?? []);
 }

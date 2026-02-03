@@ -1,18 +1,22 @@
 "use client";
 
-import { deleteConventionLog } from "@/lib/convention-api";
-import type { ConventionLogWithDetails } from "@/lib/convention-api";
+import {
+  deleteConventionLog,
+  getConventionLogsByDateRange,
+  type ConventionLogWithDetails,
+} from "@/lib/convention-api";
 import {
   useGetLatestConventionLogsQuery,
   useGetMemberConventionSummariesQuery,
 } from "@/store/conventionApi";
 import { ConventionForm } from "@/components/conversion-log/ConventionForm";
-import { EllipsisOutlined, ReloadOutlined } from "@ant-design/icons";
-import { App, Button, Dropdown, Drawer, Table, Typography } from "antd";
+import { EllipsisOutlined, ExportOutlined, ReloadOutlined } from "@ant-design/icons";
+import { App, Button, DatePicker, Dropdown, Drawer, Modal, Table, Typography } from "antd";
 import type { MenuProps } from "antd";
-import dayjs from "dayjs";
+import dayjs, { type Dayjs } from "dayjs";
 import { useCallback, useState } from "react";
 import { toast } from "react-hot-toast";
+import * as XLSX from "xlsx";
 
 const TYPE_LABELS: Record<string, string> = {
   convention: "Convention",
@@ -83,6 +87,9 @@ export function ConventionLog() {
   const { modal } = App.useApp();
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [editingRecord, setEditingRecord] = useState<ConventionLogWithDetails | null>(null);
+  const [exportModalOpen, setExportModalOpen] = useState(false);
+  const [exportDateRange, setExportDateRange] = useState<[Dayjs | null, Dayjs | null]>([null, null]);
+  const [exporting, setExporting] = useState(false);
 
   const { data: logs = [], isLoading, error, refetch, isFetching } =
     useGetLatestConventionLogsQuery(undefined, {
@@ -119,6 +126,79 @@ export function ConventionLog() {
       },
     });
   }, [modal, refetch, refetchSummary]);
+
+  const buildExcelAndDownload = useCallback(
+    (logs: ConventionLogWithDetails[], startDate: string, endDate: string) => {
+      const wb = XLSX.utils.book_new();
+
+      const logsHeaders = [
+        "วันที่",
+        "สมาชิก",
+        "ประเภท",
+        "หัวข้อ",
+        "Action",
+        "Sprint",
+        "หมายเหตุ",
+        "บันทึกเมื่อ",
+      ];
+      const logsRows = logs.map((row) => [
+        dayjs(row.log_date).format("DD/MM/YYYY"),
+        row.frontend_member?.name ?? row.member_id,
+        TYPE_LABELS[row.type] ?? row.type,
+        row.topic_convention_option?.title ?? row.topic_id,
+        row.action_rules?.label ?? row.action_rule_id,
+        row.sprint ?? "",
+        row.notes ?? "",
+        dayjs(row.created_at).format("DD/MM/YYYY HH:mm"),
+      ]);
+      const wsLogs = XLSX.utils.aoa_to_sheet([logsHeaders, ...logsRows]);
+      XLSX.utils.book_append_sheet(wb, wsLogs, "Logs");
+
+      const summaryByMember = new Map<string, { name: string; count: number }>();
+      for (const row of logs) {
+        const name = row.frontend_member?.name ?? row.member_id;
+        const prev = summaryByMember.get(row.member_id);
+        if (prev) prev.count += 1;
+        else summaryByMember.set(row.member_id, { name, count: 1 });
+      }
+      const summaryRows = Array.from(summaryByMember.entries())
+        .map(([, v]) => [v.name, v.count])
+        .sort((a, b) => String(a[0]).localeCompare(String(b[0])));
+      const summaryHeaders = ["สมาชิก", "จำนวนครั้ง (ในช่วงที่เลือก)"];
+      const wsSummary = XLSX.utils.aoa_to_sheet([summaryHeaders, ...summaryRows]);
+      XLSX.utils.book_append_sheet(wb, wsSummary, "Summary");
+
+      const filename = `convention-log_${startDate}_${endDate}.xlsx`;
+      XLSX.writeFile(wb, filename);
+    },
+    []
+  );
+
+  const onExportConfirm = useCallback(async () => {
+    const [start, end] = exportDateRange;
+    if (!start || !end) {
+      toast.error("กรุณาเลือกช่วงวันที่");
+      return;
+    }
+    if (end.isBefore(start)) {
+      toast.error("วันที่สิ้นสุดต้องไม่ก่อนวันที่เริ่มต้น");
+      return;
+    }
+    setExporting(true);
+    try {
+      const startStr = start.format("YYYY-MM-DD");
+      const endStr = end.format("YYYY-MM-DD");
+      const logs = await getConventionLogsByDateRange(startStr, endStr);
+      buildExcelAndDownload(logs, startStr, endStr);
+      toast.success("Export สำเร็จ");
+      setExportModalOpen(false);
+      setExportDateRange([null, null]);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Export ไม่สำเร็จ");
+    } finally {
+      setExporting(false);
+    }
+  }, [exportDateRange, buildExcelAndDownload]);
 
   const getActionMenuItems = (record: ConventionLogWithDetails): MenuProps["items"] => [
     { key: "edit", label: "Edit", onClick: () => onEdit(record) },
@@ -161,14 +241,23 @@ export function ConventionLog() {
         <h2 className="text-lg font-medium text-zinc-900 dark:text-zinc-50">
           Convention Log ล่าสุด (10 รายการ)
         </h2>
-        <Button
-          type="default"
-          onClick={() => refetch()}
-          loading={isFetching}
-          size="small"
-        >
-           <ReloadOutlined />
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            type="default"
+            size="small"
+            icon={<ExportOutlined />}
+            onClick={() => setExportModalOpen(true)}
+          >
+            Export
+          </Button>
+          <Button
+            type="default"
+            onClick={() => refetch()}
+            loading={isFetching}
+            size="small"
+            icon={<ReloadOutlined />}
+          />
+        </div>
       </div>
       <div className="overflow-x-auto">
         <Table<ConventionLogWithDetails>
@@ -181,6 +270,33 @@ export function ConventionLog() {
           className="[&_.ant-table]:text-zinc-700 [&_.ant-table]:dark:text-zinc-300"
         />
       </div>
+      <Modal
+        title="Export เป็น Excel"
+        open={exportModalOpen}
+        onCancel={() => {
+          setExportModalOpen(false);
+          setExportDateRange([null, null]);
+        }}
+        onOk={onExportConfirm}
+        okText="Export"
+        confirmLoading={exporting}
+      >
+        <div className="py-2">
+          <Typography.Text className="mb-2 block text-zinc-600 dark:text-zinc-400">
+            เลือกช่วงวันที่ที่ต้องการ export
+          </Typography.Text>
+          <DatePicker.RangePicker
+            value={exportDateRange}
+            onChange={(dates) => setExportDateRange(dates ?? [null, null])}
+            format="DD/MM/YYYY"
+            className="w-full"
+            size="large"
+          />
+          <Typography.Text type="secondary" className="mt-2 block text-xs">
+            ไฟล์ Excel จะมี 2 sheet: Logs (รายการ log ในช่วงที่เลือก) และ Summary (สรุปจำนวนครั้งต่อคนในช่วงที่เลือก)
+          </Typography.Text>
+        </div>
+      </Modal>
       <Drawer
         title="แก้ไข Convention Log"
         open={drawerOpen}
