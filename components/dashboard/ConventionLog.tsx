@@ -291,6 +291,7 @@ export function ConventionLog() {
             format="DD/MM/YYYY"
             className="w-full"
             size="large"
+            disabledDate={(date) => date ? date.isAfter(dayjs(), "day") : false}
           />
           <Typography.Text type="secondary" className="mt-2 block text-xs">
             ไฟล์ Excel จะมี 2 sheet: Logs (รายการ log ในช่วงที่เลือก) และ Summary (สรุปจำนวนครั้งต่อคนในช่วงที่เลือก)
