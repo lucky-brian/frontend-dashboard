@@ -59,7 +59,7 @@ export async function getTopicConventionOptions(): Promise<
   const supabase = createClient();
   const { data, error } = await supabase
     .from("topic_convention_option")
-    .select("*")
+    .select("id, title, type, sort_order, created_at, updated_at")
     .order("sort_order");
   if (error) throw error;
   return data ?? [];
@@ -70,7 +70,7 @@ export async function getActionRules(): Promise<ActionRule[]> {
   const supabase = createClient();
   const { data, error } = await supabase
     .from("action_rules")
-    .select("*")
+    .select("id, topic_id, label, value, sort_order, created_at, updated_at")
     .order("topic_id")
     .order("sort_order");
   if (error) throw error;
