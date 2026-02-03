@@ -1,19 +1,20 @@
 "use client";
 
 import {
-  ACTION_RULES,
-  CONVENTION_TYPE_RULES,
-  REDUX_TYPE_OPTIONS,
-  TEAM_MEMBERS,
-} from "@/lib/constants";
-import { Button, DatePicker, Form, Input, Select } from "antd";
+  insertConventionLog,
+  updateConventionLog,
+  type ConventionLogWithDetails,
+} from "@/lib/convention-api";
+import { useConventionFormOptions } from "@/hooks/useConventionFormOptions";
+import { Button, DatePicker, Form, Input, Select, Skeleton } from "antd";
 import dayjs, { type Dayjs } from "dayjs";
+import { useEffect } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { toast } from "react-hot-toast";
 
 const { TextArea } = Input;
 
-type ReduxPointFormValues = {
+export type ReduxPointFormValues = {
   date: Dayjs | null;
   member: string;
   type: string;
@@ -23,7 +24,20 @@ type ReduxPointFormValues = {
   notes: string;
 };
 
-function getDefaultValues(): ReduxPointFormValues {
+function getDefaultValues(
+  initial?: ConventionLogWithDetails | null
+): ReduxPointFormValues {
+  if (initial) {
+    return {
+      date: dayjs(initial.log_date),
+      member: initial.member_id,
+      type: initial.type,
+      topicRule: initial.topic_id,
+      sprint: initial.sprint ?? "",
+      action: initial.action_rule_id,
+      notes: initial.notes ?? "",
+    };
+  }
   return {
     date: dayjs(),
     member: "",
@@ -35,38 +49,28 @@ function getDefaultValues(): ReduxPointFormValues {
   };
 }
 
-const memberOptions = TEAM_MEMBERS.map((name) => ({
-  value: name,
-  label: name,
-}));
-
-const typeOptions = REDUX_TYPE_OPTIONS.map((opt) => ({
-  value: opt.value,
-  label: opt.label,
-}));
-
-function getTopicOptionsByType(type: string) {
-  if (!type) return [];
-  const filtered = CONVENTION_TYPE_RULES.filter((t) => t.type === type);
-  return filtered.map((t) => ({ value: t.value, label: t.label }));
-}
-
-const TOPIC_TO_ACTION_TYPE: Record<string, string> = {
-  "Commit Message": "commit_message",
-  "Branch Naming": "branch_naming",
-  "Dev Testing": "dev_testing",
-  Delivery: "delivery",
+export type ConventionFormProps = {
+  mode?: "create" | "edit";
+  initialData?: ConventionLogWithDetails | null;
+  onSuccess?: () => void;
+  onCancel?: () => void;
 };
 
-function getActionOptionsByTopic(topicRule: string) {
-  if (!topicRule) return [];
-  const actionType = TOPIC_TO_ACTION_TYPE[topicRule];
-  if (!actionType) return [];
-  const filtered = ACTION_RULES.filter((r) => r.type === actionType);
-  return filtered.map((r) => ({ value: r.value, label: r.label }));
-}
+export function ConventionForm({
+  mode = "create",
+  initialData = null,
+  onSuccess,
+  onCancel,
+}: Readonly<ConventionFormProps>) {
+  const {
+    memberOptions,
+    typeOptions,
+    getTopicOptions,
+    getActionOptions,
+    isLoading,
+    error,
+  } = useConventionFormOptions();
 
-export function ConventionForm() {
   const {
     control,
     handleSubmit,
@@ -75,214 +79,321 @@ export function ConventionForm() {
     watch,
     formState: { errors },
   } = useForm<ReduxPointFormValues>({
-    defaultValues: getDefaultValues(),
+    defaultValues: getDefaultValues(initialData),
     mode: "onChange",
   });
 
+  useEffect(() => {
+    reset(getDefaultValues(initialData));
+  }, [initialData, reset]);
+
   const selectedType = watch("type");
-  const selectedTopicRule = watch("topicRule");
-  const topicOptions = getTopicOptionsByType(selectedType ?? "");
-  const actionOptions = getActionOptionsByTopic(selectedTopicRule ?? "");
+  const selectedTopicId = watch("topicRule");
+  const topicOptions = getTopicOptions(selectedType ?? "");
+  const actionOptions = getActionOptions(selectedTopicId ?? "");
 
-  const onSave = (data: ReduxPointFormValues) => {
-    const payload = {
-      ...data,
-      date: data.date ?? dayjs(),
+  const onSave = async (data: ReduxPointFormValues) => {
+    const date = data.date ?? dayjs();
+    const params = {
+      log_date: date.format("YYYY-MM-DD"),
+      member_id: data.member,
+      type: data.type as "convention" | "delivery",
+      topic_id: data.topicRule,
+      action_rule_id: data.action,
+      sprint: data.sprint || null,
+      notes: data.notes || null,
     };
-    toast.success("บันทึกสำเร็จ");
-    console.info("ReduxPointForm submit", payload);
-    reset(getDefaultValues());
+    try {
+      if (mode === "edit" && initialData?.id) {
+        await updateConventionLog(initialData.id, params);
+        toast.success("แก้ไขสำเร็จ");
+      } else {
+        await insertConventionLog(params);
+        toast.success("บันทึกสำเร็จ");
+      }
+      reset(getDefaultValues(null));
+      onSuccess?.();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "บันทึกไม่สำเร็จ");
+    }
   };
 
-  const onCancel = () => {
-    reset(getDefaultValues());
+  const handleCancel = () => {
+    reset(getDefaultValues(initialData));
+    onCancel?.();
   };
+
+  if (error) {
+    return (
+      <div className="w-1/2 rounded-xl border border-red-200 bg-red-50 p-6 dark:border-red-800 dark:bg-red-950">
+        <p className="text-red-700 dark:text-red-300">{error}</p>
+      </div>
+    );
+  }
+
+  const isEdit = mode === "edit";
+  const formWrapperClass = isEdit
+    ? "w-full"
+    : "w-1/2 rounded-xl border border-zinc-200 bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-900";
 
   return (
-    <div className="w-1/2 rounded-xl border border-zinc-200 bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
-      <form onSubmit={handleSubmit(onSave)} className="flex flex-col gap-0">
-        <Form
-          component="div"
-          layout="vertical"
-          className="ant-form-antd-custom"
-        >
-          <Form.Item
-            validateStatus={errors.date ? "error" : undefined}
-            help={errors.date?.message}
+    <div className={formWrapperClass}>
+      {isLoading ? (
+        <div className="flex flex-col space-y-8">
+          <div className="flex flex-col gap-3">
+            <Skeleton.Input
+              active
+              block
+              size="large"
+              style={{ height: "20px", width: "100px" }}
+            />
+            <Skeleton.Input active block size="large" />
+          </div>
+
+          <div className="flex flex-col gap-3">
+            <Skeleton.Input
+              active
+              block
+              size="large"
+              style={{ height: "20px", width: "100px" }}
+            />
+            <Skeleton.Input active block size="large" />
+          </div>
+
+          <div className="flex flex-col gap-3">
+            <Skeleton.Input
+              active
+              block
+              size="large"
+              style={{ height: "20px", width: "100px" }}
+            />
+            <Skeleton.Input active block size="large" />
+          </div>
+
+          <div className="flex flex-col gap-3">
+            <Skeleton.Input
+              active
+              block
+              size="large"
+              style={{ height: "20px", width: "100px" }}
+            />
+            <Skeleton.Input active block size="large" />
+          </div>
+
+          <div className="flex flex-col gap-3">
+            <Skeleton.Input
+              active
+              block
+              size="large"
+              style={{ height: "20px", width: "100px" }}
+            />
+            <Skeleton.Input active block size="large" />
+          </div>
+
+          <div className="flex flex-col gap-3">
+            <Skeleton.Input
+              active
+              block
+              size="large"
+              style={{ height: "20px", width: "100px" }}
+            />
+            <Skeleton.Input
+              active
+              block
+              size="large"
+              style={{ height: "100px" }}
+            />
+          </div>
+          <div className="flex gap-3 justify-end">
+            <Skeleton.Button active size="large" />
+            <Skeleton.Button active size="large" />
+          </div>
+        </div>
+      ) : (
+        <form onSubmit={handleSubmit(onSave)} className="flex flex-col gap-0">
+          <Form
+            component="div"
+            layout="vertical"
+            className="ant-form-antd-custom"
           >
-            <Controller
-              name="date"
-              control={control}
-              render={({ field }) => (
-                <DatePicker
-                  {...field}
-                  value={field.value ?? undefined}
-                  onChange={(v) => field.onChange(v ?? null)}
-                  placeholder="เลือกวันที่"
-                  className="w-full"
-                  size="large"
-                  format="DD/MM/YYYY"
-                />
-              )}
-            />
-          </Form.Item>
+            <Form.Item
+              validateStatus={errors.date ? "error" : undefined}
+              help={errors.date?.message}
+            >
+              <Controller
+                name="date"
+                control={control}
+                render={({ field }) => (
+                  <DatePicker
+                    {...field}
+                    value={field.value ?? undefined}
+                    onChange={(v) => field.onChange(v ?? null)}
+                    placeholder="เลือกวันที่"
+                    className="w-full"
+                    size="large"
+                    format="DD/MM/YYYY"
+                  />
+                )}
+              />
+            </Form.Item>
 
-          <Form.Item
-            label="Member *"
-            validateStatus={errors.member ? "error" : undefined}
-            help={errors.member?.message}
-          >
-            <Controller
-              name="member"
-              control={control}
-              rules={{ required: "Please select a member" }}
-              render={({ field }) => (
-                <Select
-                  {...field}
-                  value={field.value || undefined}
-                  onChange={(v) => field.onChange(v ?? "")}
-                  options={memberOptions}
-                  placeholder="-- Select a member --"
-                  allowClear
-                  className="w-full"
-                  size="large"
-                />
-              )}
-            />
-          </Form.Item>
+            <Form.Item
+              label="Member *"
+              validateStatus={errors.member ? "error" : undefined}
+              help={errors.member?.message}
+            >
+              <Controller
+                name="member"
+                control={control}
+                rules={{ required: "Please select a member" }}
+                render={({ field }) => (
+                  <Select
+                    {...field}
+                    value={field.value || undefined}
+                    onChange={(v) => field.onChange(v ?? "")}
+                    options={memberOptions}
+                    placeholder="-- Select a member --"
+                    allowClear
+                    className="w-full"
+                    size="large"
+                  />
+                )}
+              />
+            </Form.Item>
 
-          <Form.Item
-            label="Type *"
-            validateStatus={errors.type ? "error" : undefined}
-            help={errors.type?.message}
-          >
-            <Controller
-              name="type"
-              control={control}
-              rules={{ required: "Please select a type" }}
-              render={({ field }) => (
-                <Select
-                  {...field}
-                  value={field.value || undefined}
-                  onChange={(v) => {
-                    field.onChange(v ?? "");
-                    setValue("topicRule", "");
-                    setValue("action", "");
-                  }}
-                  options={typeOptions}
-                  placeholder="-- Select a type --"
-                  allowClear
-                  className="w-full"
-                  size="large"
-                />
-              )}
-            />
-          </Form.Item>
+            <Form.Item
+              label="Type *"
+              validateStatus={errors.type ? "error" : undefined}
+              help={errors.type?.message}
+            >
+              <Controller
+                name="type"
+                control={control}
+                rules={{ required: "Please select a type" }}
+                render={({ field }) => (
+                  <Select
+                    {...field}
+                    value={field.value || undefined}
+                    onChange={(v) => {
+                      field.onChange(v ?? "");
+                      setValue("topicRule", "");
+                      setValue("action", "");
+                    }}
+                    options={typeOptions}
+                    placeholder="-- Select a type --"
+                    allowClear
+                    className="w-full"
+                    size="large"
+                  />
+                )}
+              />
+            </Form.Item>
 
-          <Form.Item
-            label="Topic rules *"
-            validateStatus={errors.topicRule ? "error" : undefined}
-            help={errors.topicRule?.message}
-          >
-            <Controller
-              name="topicRule"
-              control={control}
-              rules={{ required: "Please select a topic" }}
-              render={({ field }) => (
-                <Select
-                  {...field}
-                  value={field.value || undefined}
-                  onChange={(v) => {
-                    field.onChange(v ?? "");
-                    setValue("action", "");
-                  }}
-                  options={topicOptions}
-                  placeholder="-- Select a topic --"
-                  allowClear
-                  className="w-full"
-                  size="large"
-                  disabled={!selectedType}
-                />
-              )}
-            />
-          </Form.Item>
+            <Form.Item
+              label="Topic rules *"
+              validateStatus={errors.topicRule ? "error" : undefined}
+              help={errors.topicRule?.message}
+            >
+              <Controller
+                name="topicRule"
+                control={control}
+                rules={{ required: "Please select a topic" }}
+                render={({ field }) => (
+                  <Select
+                    {...field}
+                    value={field.value || undefined}
+                    onChange={(v) => {
+                      field.onChange(v ?? "");
+                      setValue("action", "");
+                    }}
+                    options={topicOptions}
+                    placeholder="-- Select a topic --"
+                    allowClear
+                    className="w-full"
+                    size="large"
+                    disabled={!selectedType}
+                  />
+                )}
+              />
+            </Form.Item>
 
-          <Form.Item
-            label="Action *"
-            validateStatus={errors.action ? "error" : undefined}
-            help={errors.action?.message}
-          >
-            <Controller
-              name="action"
-              control={control}
-              rules={{ required: "Please select an action" }}
-              render={({ field }) => (
-                <Select
-                  {...field}
-                  value={field.value || undefined}
-                  onChange={(v) => field.onChange(v ?? "")}
-                  options={actionOptions}
-                  placeholder="-- Select an action --"
-                  allowClear
-                  className="w-full"
-                  size="large"
-                  disabled={!selectedTopicRule}
-                />
-              )}
-            />
-          </Form.Item>
+            <Form.Item
+              label="Action *"
+              validateStatus={errors.action ? "error" : undefined}
+              help={errors.action?.message}
+            >
+              <Controller
+                name="action"
+                control={control}
+                rules={{ required: "Please select an action" }}
+                render={({ field }) => (
+                  <Select
+                    {...field}
+                    value={field.value || undefined}
+                    onChange={(v) => field.onChange(v ?? "")}
+                    options={actionOptions}
+                    placeholder="-- Select an action --"
+                    allowClear
+                    className="w-full"
+                    size="large"
+                    disabled={!selectedTopicId}
+                  />
+                )}
+              />
+            </Form.Item>
 
-          <Form.Item label="Sprint">
-            <Controller
-              name="sprint"
-              control={control}
-              render={({ field }) => (
-                <Input
-                  {...field}
-                  placeholder="e.g. 1, 2, 3, etc."
-                  className="w-full"
-                  size="large"
-                />
-              )}
-            />
-          </Form.Item>
+            <Form.Item label="Sprint">
+              <Controller
+                name="sprint"
+                control={control}
+                render={({ field }) => (
+                  <Input
+                    {...field}
+                    placeholder="e.g. 1, 2, 3, etc."
+                    className="w-full"
+                    size="large"
+                  />
+                )}
+              />
+            </Form.Item>
 
-          <Form.Item label="Notes">
-            <Controller
-              name="notes"
-              control={control}
-              render={({ field }) => (
-                <TextArea
-                  {...field}
-                  rows={3}
-                  placeholder="Additional notes"
-                  className="w-full"
-                  size="large"
-                />
-              )}
-            />
-          </Form.Item>
+            <Form.Item label="Notes">
+              <Controller
+                name="notes"
+                control={control}
+                render={({ field }) => (
+                  <TextArea
+                    {...field}
+                    rows={3}
+                    placeholder="Additional notes"
+                    className="w-full"
+                    size="large"
+                  />
+                )}
+              />
+            </Form.Item>
 
-          <Form.Item className="mb-0 mt-4">
-            <div className="flex gap-3 justify-end">
-              <Button
-                type="default"
-                onClick={onCancel}
-                className="h-[40px]! dark:hover:bg-zinc-800! w-[120px]!"
-              >
-                Cancel
-              </Button>
-              <Button
-                type="primary"
-                htmlType="submit"
-                className="bg-blue-600! hover:bg-blue-700! text-white! font-bold! py-2 px-4 rounded! h-[40px]! w-[120px]!"
-              >
-                Save
-              </Button>
-            </div>
-          </Form.Item>
-        </Form>
-      </form>
+            <Form.Item className="mb-0 mt-4">
+              <div className="flex gap-3 justify-end">
+                <Button
+                  type="default"
+                  onClick={handleCancel}
+                  className="h-[40px]! dark:hover:bg-zinc-800! w-[120px]!"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="primary"
+                  htmlType="submit"
+                  className="bg-blue-600! hover:bg-blue-700! text-white! font-bold! py-2 px-4 rounded! h-[40px]! w-[120px]!"
+                >
+                  Save
+                </Button>
+              </div>
+            </Form.Item>
+          </Form>
+        </form>
+      )}
     </div>
   );
 }

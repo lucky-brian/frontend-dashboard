@@ -21,6 +21,7 @@ export function SupabaseConnectionStatus() {
         if (error) {
           setStatus("error");
           setMessage(error.message);
+          console.error(error);
           return;
         }
         setStatus("connected");
@@ -28,7 +29,10 @@ export function SupabaseConnectionStatus() {
       } catch (err) {
         if (cancelled) return;
         setStatus("error");
-        setMessage(err instanceof Error ? err.message : "ไม่สามารถเชื่อมต่อได้");
+        setMessage(
+          err instanceof Error ? err.message : "ไม่สามารถเชื่อมต่อได้"
+        );
+        console.error(err);
       }
     }
 
@@ -40,7 +44,7 @@ export function SupabaseConnectionStatus() {
 
   if (status === "checking") {
     return (
-      <div className="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-600">
+      <div className="flex items-center gap-2">
         <span className="size-2 animate-pulse rounded-full bg-amber-500" />
         <span>กำลังตรวจสอบการเชื่อมต่อฐานข้อมูล...</span>
       </div>
@@ -49,7 +53,7 @@ export function SupabaseConnectionStatus() {
 
   if (status === "connected") {
     return (
-      <div className="inline-flex items-center gap-2 rounded-lg border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-800">
+      <div className="flex items-center gap-2">
         <span className="size-2 rounded-full bg-green-500" />
         <span>{message}</span>
       </div>
@@ -57,12 +61,9 @@ export function SupabaseConnectionStatus() {
   }
 
   return (
-    <div className="inline-flex flex-col gap-1 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">
-      <span className="inline-flex items-center gap-2">
-        <span className="size-2 rounded-full bg-red-500" />
-        <span>เชื่อมต่อฐานข้อมูลไม่ได้</span>
-      </span>
-      <span className="text-xs text-red-600">{message}</span>
+    <div className="">
+      <span className="size-2 rounded-full bg-red-500" />
+      <span>เชื่อมต่อฐานข้อมูลไม่ได้</span>
     </div>
   );
 }

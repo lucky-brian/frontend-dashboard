@@ -1,5 +1,7 @@
 import { AntdThemeProvider } from "@/components/AntdThemeProvider";
+import { StoreProvider } from "@/components/StoreProvider";
 import { AntdRegistry } from "@ant-design/nextjs-registry";
+import { App as AntdApp } from "antd";
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { Toaster } from "react-hot-toast";
@@ -31,10 +33,14 @@ export default function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
         <AntdRegistry>
-          <AntdThemeProvider>
-            {children}
-            <Toaster position="top-right" />
-          </AntdThemeProvider>
+          <StoreProvider>
+            <AntdThemeProvider>
+              <AntdApp>
+                {children}
+                <Toaster position="top-right" />
+              </AntdApp>
+            </AntdThemeProvider>
+          </StoreProvider>
         </AntdRegistry>
       </body>
     </html>
