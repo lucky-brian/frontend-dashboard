@@ -34,7 +34,7 @@ const columnsBase = [
   {
     title: "สมาชิก",
     key: "member",
-    width: 140,
+    width: 110,
     render: (_: unknown, record: ConventionLogWithDetails) =>
       record.frontend_member?.name ?? record.member_id,
   },
@@ -55,7 +55,6 @@ const columnsBase = [
   {
     title: "Action",
     key: "action",
-    width: 140,
     render: (_: unknown, record: ConventionLogWithDetails) =>
       record.action_rules?.label ?? record.action_rule_id,
   },
