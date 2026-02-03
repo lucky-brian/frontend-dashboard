@@ -1,13 +1,10 @@
 "use client";
 
+import { NAV_ITEMS } from "@/lib/constants";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
-const menuItems = [
-  { href: "/dashboard", label: "Dashboard" },
-  { href: "/conversion-log", label: "Conversion log" },
-  { href: "/kpi", label: "KPI" },
-] as const;
+const menuItems = NAV_ITEMS;
 
 export function Sidebar() {
   const pathname = usePathname();

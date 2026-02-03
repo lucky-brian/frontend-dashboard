@@ -1,4 +1,5 @@
 import dayjs from "dayjs";
+import { SupabaseConnectionStatus } from "@/components/SupabaseConnectionStatus";
 
 export default function DashboardPage() {
   return (
@@ -9,6 +10,9 @@ export default function DashboardPage() {
           {dayjs().format("DD/MM/YYYY")}
         </span>
       </h1>
+      <div className="mt-4">
+        <SupabaseConnectionStatus />
+      </div>
       <div className="mt-6 rounded-xl border border-zinc-200 bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
         <h2 className="text-lg font-medium text-zinc-900 dark:text-zinc-50">
           ยินดีต้อนรับสู่ Dashboard
