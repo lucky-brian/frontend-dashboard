@@ -193,6 +193,32 @@ export interface Database {
           updated_at?: string;
         };
       };
+      activity_log: {
+        Row: {
+          id: string;
+          actor_name: string;
+          action_type: string;
+          description: string;
+          metadata: Json | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          actor_name: string;
+          action_type: string;
+          description: string;
+          metadata?: Json | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          actor_name?: string;
+          action_type?: string;
+          description?: string;
+          metadata?: Json | null;
+          created_at?: string;
+        };
+      };
     };
   };
 }
@@ -207,3 +233,4 @@ export type ActionRule = Database["public"]["Tables"]["action_rules"]["Row"];
 export type ConventionLog = Database["public"]["Tables"]["convention_logs"]["Row"];
 export type MemberConventionSummary =
   Database["public"]["Tables"]["member_convention_summary"]["Row"];
+export type ActivityLog = Database["public"]["Tables"]["activity_log"]["Row"];

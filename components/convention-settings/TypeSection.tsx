@@ -1,5 +1,6 @@
 "use client";
 
+import { insertActivityLog } from "@/lib/activity-log-api";
 import {
   deleteConventionType,
   getConventionTypes,
@@ -7,17 +8,31 @@ import {
   updateConventionType,
 } from "@/lib/convention-api";
 import type { ConventionType } from "@/lib/database.types";
-import { Button, Form, Input, InputNumber, Modal, Table } from "antd";
+import { useCurrentUser } from "@/hooks/useCurrentUser";
+import { conventionApi } from "@/store/conventionApi";
+import { App, Button, Form, Input, InputNumber, Modal, Table } from "antd";
 import { useCallback, useEffect, useState } from "react";
+import { useDispatch } from "react-redux";
 import { toast } from "react-hot-toast";
 
 type FormValues = {
-  value: string;
   label: string;
   sort_order: number;
 };
 
+/** สร้าง value จาก label (สำหรับส่ง API) */
+function labelToValue(label: string): string {
+  return label
+    .trim()
+    .toLowerCase()
+    .replaceAll(/\s+/g, "_")
+    .replaceAll(/[^a-z0-9_-]/g, "");
+}
+
 export function TypeSection() {
+  const { modal } = App.useApp();
+  const dispatch = useDispatch();
+  const { user } = useCurrentUser();
   const [types, setTypes] = useState<ConventionType[]>([]);
   const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
@@ -43,14 +58,13 @@ export function TypeSection() {
 
   const openAdd = () => {
     setEditing(null);
-    form.setFieldsValue({ value: "", label: "", sort_order: types.length });
+    form.setFieldsValue({ label: "", sort_order: types.length });
     setModalOpen(true);
   };
 
   const openEdit = (row: ConventionType) => {
     setEditing(row);
     form.setFieldsValue({
-      value: row.value,
       label: row.label,
       sort_order: row.sort_order,
     });
@@ -60,22 +74,37 @@ export function TypeSection() {
   const handleSubmit = async () => {
     const values = await form.validateFields();
     setSaving(true);
+    const actorName = user?.name ?? "unknown";
     try {
       if (editing) {
+        const value = labelToValue(values.label);
         await updateConventionType(editing.id, {
-          value: values.value,
+          value,
           label: values.label,
           sort_order: values.sort_order,
         });
         toast.success("แก้ไข Type สำเร็จ");
+        await insertActivityLog({
+          actor_name: actorName,
+          action_type: "setting_convention",
+          description: `แก้ไข Type (Setting Convention) โดย ${actorName}`,
+          metadata: { section: "type", id: editing.id },
+        });
       } else {
+        const value = labelToValue(values.label);
         await insertConventionType({
-          value: values.value,
+          value,
           label: values.label,
           sort_order: values.sort_order,
         });
         toast.success("เพิ่ม Type สำเร็จ");
+        await insertActivityLog({
+          actor_name: actorName,
+          action_type: "setting_convention",
+          description: `เพิ่ม Type (Setting Convention) โดย ${actorName}`,
+        });
       }
+      dispatch(conventionApi.util.invalidateTags(["ConventionFormOptions"]));
       setModalOpen(false);
       load();
     } catch (err) {
@@ -86,16 +115,25 @@ export function TypeSection() {
   };
 
   const handleDelete = (row: ConventionType) => {
-    Modal.confirm({
+    modal.confirm({
       title: "ยืนยันการลบ",
-      content: `ต้องการลบ Type "${row.label}" (${row.value}) ใช่หรือไม่? ถ้ามี Topic ใช้ type นี้อยู่จะลบไม่ได้`,
+      content: `ต้องการลบ Type "${row.label}" ใช่หรือไม่? ถ้ามี Topic ใช้ type นี้อยู่จะลบไม่ได้`,
       okText: "ลบ",
+      centered: true,
       okType: "danger",
       cancelText: "ยกเลิก",
       onOk: async () => {
         try {
           await deleteConventionType(row.id);
+          const actorName = user?.name ?? "unknown";
+          await insertActivityLog({
+            actor_name: actorName,
+            action_type: "setting_convention",
+            description: `ลบ Type (Setting Convention) โดย ${actorName}`,
+            metadata: { section: "type", id: row.id },
+          });
           toast.success("ลบสำเร็จ");
+          dispatch(conventionApi.util.invalidateTags(["ConventionFormOptions"]));
           load();
         } catch (err) {
           toast.error(err instanceof Error ? err.message : "ลบไม่สำเร็จ");
@@ -105,8 +143,7 @@ export function TypeSection() {
   };
 
   const columns = [
-    { title: "Value", dataIndex: "value", key: "value" },
-    { title: "Label", dataIndex: "label", key: "label" },
+    { title: "Type", dataIndex: "label", key: "label" },
     { title: "ลำดับ", dataIndex: "sort_order", key: "sort_order", width: 80 },
     {
       title: "จัดการ",
@@ -159,15 +196,8 @@ export function TypeSection() {
       >
         <Form form={form} layout="vertical" className="mt-4">
           <Form.Item
-            name="value"
-            label="Value (ค่าที่เก็บใน DB)"
-            rules={[{ required: true, message: "กรุณากรอก value" }]}
-          >
-            <Input placeholder="เช่น convention, delivery" />
-          </Form.Item>
-          <Form.Item
             name="label"
-            label="Label (ข้อความที่แสดง)"
+            label="Label"
             rules={[{ required: true, message: "กรุณากรอก label" }]}
           >
             <Input placeholder="เช่น Convention, Delivery" />

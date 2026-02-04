@@ -1,15 +1,17 @@
 "use client";
 
+import { insertActivityLog } from "@/lib/activity-log-api";
 import {
   deleteConventionLog,
   getConventionLogsByDateRange,
   type ConventionLogWithDetails,
 } from "@/lib/convention-api";
+import { ConventionForm } from "@/components/conversion-log/ConventionForm";
+import { useCurrentUser } from "@/hooks/useCurrentUser";
 import {
   useGetLatestConventionLogsQuery,
   useGetMemberConventionSummariesQuery,
 } from "@/store/conventionApi";
-import { ConventionForm } from "@/components/conversion-log/ConventionForm";
 import { EllipsisOutlined, ExportOutlined, ReloadOutlined } from "@ant-design/icons";
 import { App, Button, DatePicker, Dropdown, Drawer, Modal, Table, Typography } from "antd";
 import type { MenuProps } from "antd";
@@ -84,6 +86,7 @@ const columnsBase = [
 
 export function ConventionLog() {
   const { modal } = App.useApp();
+  const { user } = useCurrentUser();
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [editingRecord, setEditingRecord] = useState<ConventionLogWithDetails | null>(null);
   const [exportModalOpen, setExportModalOpen] = useState(false);
@@ -116,6 +119,41 @@ export function ConventionLog() {
       onOk: async () => {
         try {
           await deleteConventionLog(record.id);
+          const actorName = user?.name ?? "unknown";
+          const memberName =
+            record.frontend_member?.name ?? record.member_id;
+          const topicTitle =
+            record.topic_convention_option?.title ?? record.topic_id;
+          const actionLabel =
+            record.action_rules?.label ?? record.action_rule_id;
+          const typeLabel = TYPE_LABELS[record.type] ?? record.type;
+          const parts = [
+            `วันที่ ${dayjs(record.log_date).format("DD/MM/YYYY")}`,
+            `สมาชิก ${memberName}`,
+            `ประเภท ${typeLabel}`,
+            `หัวข้อ ${topicTitle}`,
+            `Action ${actionLabel}`,
+          ];
+          if (record.sprint) parts.push(`Sprint ${record.sprint}`);
+          if (record.notes) parts.push(`หมายเหตุ ${record.notes}`);
+          const contentSummary = parts.join(", ");
+          await insertActivityLog({
+            actor_name: actorName,
+            action_type: "delete_convention_log",
+            description: `ลบ Convention Log โดย ${actorName}: ${contentSummary}`,
+            metadata: {
+              log_id: record.id,
+              deleted_convention: {
+                log_date: record.log_date,
+                member_name: memberName,
+                type: record.type,
+                topic_title: topicTitle,
+                action_label: actionLabel,
+                sprint: record.sprint,
+                notes: record.notes,
+              },
+            },
+          });
           toast.success("ลบสำเร็จ");
           refetch();
           refetchSummary();
@@ -124,7 +162,7 @@ export function ConventionLog() {
         }
       },
     });
-  }, [modal, refetch, refetchSummary]);
+  }, [modal, refetch, refetchSummary, user?.name]);
 
   const buildExcelAndDownload = useCallback(
     (logs: ConventionLogWithDetails[], startDate: string, endDate: string) => {

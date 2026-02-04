@@ -1,10 +1,12 @@
 "use client";
 
+import { insertActivityLog } from "@/lib/activity-log-api";
 import {
   insertConventionLog,
   updateConventionLog,
   type ConventionLogWithDetails,
 } from "@/lib/convention-api";
+import { useCurrentUser } from "@/hooks/useCurrentUser";
 import { useConventionFormOptions } from "@/hooks/useConventionFormOptions";
 import { Button, DatePicker, Form, Input, Select, Skeleton } from "antd";
 import dayjs, { type Dayjs } from "dayjs";
@@ -62,6 +64,7 @@ export function ConventionForm({
   onSuccess,
   onCancel,
 }: Readonly<ConventionFormProps>) {
+  const { user } = useCurrentUser();
   const {
     memberOptions,
     typeOptions,
@@ -104,12 +107,24 @@ export function ConventionForm({
       notes: data.notes || null,
     };
     try {
+      const actorName = user?.name ?? "unknown";
       if (mode === "edit" && initialData?.id) {
         await updateConventionLog(initialData.id, params);
         toast.success("แก้ไขสำเร็จ");
+        await insertActivityLog({
+          actor_name: actorName,
+          action_type: "edit_convention_log",
+          description: `แก้ไข Convention Log โดย ${actorName}`,
+          metadata: { log_id: initialData.id },
+        });
       } else {
         await insertConventionLog(params);
         toast.success("บันทึกสำเร็จ");
+        await insertActivityLog({
+          actor_name: actorName,
+          action_type: "add_convention_log",
+          description: `เพิ่ม Convention Log โดย ${actorName}`,
+        });
       }
       reset(getDefaultValues(null));
       onSuccess?.();

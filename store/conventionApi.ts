@@ -25,6 +25,7 @@ export const conventionApi = createApi({
   reducerPath: "conventionApi",
   baseQuery: fetchBaseQuery({ baseUrl: "" }),
   keepUnusedDataFor: 60 * 60, // cache 1 ชม.
+  tagTypes: ["ConventionFormOptions"],
   endpoints: (builder) => ({
     getConventionFormOptions: builder.query<
       ConventionFormOptionsResult,
@@ -65,6 +66,7 @@ export const conventionApi = createApi({
           };
         }
       },
+      providesTags: ["ConventionFormOptions"],
     }),
     getLatestConventionLogs: builder.query<ConventionLogWithDetails[], void>({
       queryFn: async () => {

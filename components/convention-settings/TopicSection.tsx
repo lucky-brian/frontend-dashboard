@@ -1,5 +1,6 @@
 "use client";
 
+import { insertActivityLog } from "@/lib/activity-log-api";
 import {
   deleteTopicConventionOption,
   getConventionTypes,
@@ -9,8 +10,11 @@ import {
 } from "@/lib/convention-api";
 import type { TopicConventionOptionWithType } from "@/lib/convention-api";
 import type { ConventionType, TopicConventionOption } from "@/lib/database.types";
-import { Button, Form, Input, InputNumber, Modal, Select, Table } from "antd";
+import { useCurrentUser } from "@/hooks/useCurrentUser";
+import { conventionApi } from "@/store/conventionApi";
+import { App, Button, Form, Input, InputNumber, Modal, Select, Table } from "antd";
 import { useCallback, useEffect, useState } from "react";
+import { useDispatch } from "react-redux";
 import { toast } from "react-hot-toast";
 
 type FormValues = {
@@ -20,6 +24,9 @@ type FormValues = {
 };
 
 export function TopicSection() {
+  const { modal } = App.useApp();
+  const dispatch = useDispatch();
+  const { user } = useCurrentUser();
   const [topics, setTopics] = useState<TopicConventionOptionWithType[]>([]);
   const [types, setTypes] = useState<ConventionType[]>([]);
   const [loading, setLoading] = useState(true);
@@ -74,6 +81,7 @@ export function TopicSection() {
   const handleSubmit = async () => {
     const values = await form.validateFields();
     setSaving(true);
+    const actorName = user?.name ?? "unknown";
     try {
       if (editing) {
         await updateTopicConventionOption(editing.id, {
@@ -82,6 +90,12 @@ export function TopicSection() {
           sort_order: values.sort_order,
         });
         toast.success("แก้ไข Topic สำเร็จ");
+        await insertActivityLog({
+          actor_name: actorName,
+          action_type: "setting_convention",
+          description: `แก้ไข Topic (Setting Convention) โดย ${actorName}`,
+          metadata: { section: "topic", id: editing.id },
+        });
       } else {
         await insertTopicConventionOption({
           title: values.title,
@@ -89,7 +103,13 @@ export function TopicSection() {
           sort_order: values.sort_order,
         });
         toast.success("เพิ่ม Topic สำเร็จ");
+        await insertActivityLog({
+          actor_name: actorName,
+          action_type: "setting_convention",
+          description: `เพิ่ม Topic (Setting Convention) โดย ${actorName}`,
+        });
       }
+      dispatch(conventionApi.util.invalidateTags(["ConventionFormOptions"]));
       setModalOpen(false);
       load();
     } catch (err) {
@@ -100,16 +120,25 @@ export function TopicSection() {
   };
 
   const handleDelete = (row: TopicConventionOption) => {
-    Modal.confirm({
+    modal.confirm({
       title: "ยืนยันการลบ",
       content: `ต้องการลบ Topic "${row.title}" ใช่หรือไม่? การลบจะส่งผลต่อ Rule และ Action ที่ผูกอยู่`,
       okText: "ลบ",
       okType: "danger",
+      centered: true,
       cancelText: "ยกเลิก",
       onOk: async () => {
         try {
           await deleteTopicConventionOption(row.id);
+          const actorName = user?.name ?? "unknown";
+          await insertActivityLog({
+            actor_name: actorName,
+            action_type: "setting_convention",
+            description: `ลบ Topic (Setting Convention) โดย ${actorName}`,
+            metadata: { section: "topic", id: row.id },
+          });
           toast.success("ลบสำเร็จ");
+          dispatch(conventionApi.util.invalidateTags(["ConventionFormOptions"]));
           load();
         } catch (err) {
           toast.error(err instanceof Error ? err.message : "ลบไม่สำเร็จ");

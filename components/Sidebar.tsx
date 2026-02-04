@@ -1,5 +1,6 @@
 "use client";
 
+import { useCurrentUser } from "@/hooks/useCurrentUser";
 import { NAV_ITEMS } from "@/lib/constants";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -8,6 +9,7 @@ const menuItems = NAV_ITEMS;
 
 export function Sidebar() {
   const pathname = usePathname();
+  const { user } = useCurrentUser();
 
   return (
     <aside className="flex h-full w-56 flex-col border-r border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
@@ -34,6 +36,18 @@ export function Sidebar() {
           );
         })}
       </nav>
+      {user && (
+        <div className="border-t border-zinc-200 px-4 py-3 dark:border-zinc-800">
+          <p className="truncate text-sm font-medium text-zinc-900 dark:text-zinc-50">
+            {user.name}
+          </p>
+          {user.role && (
+            <p className="text-xs text-zinc-500 dark:text-zinc-400">
+              {user.role}
+            </p>
+          )}
+        </div>
+      )}
     </aside>
   );
 }

@@ -1,5 +1,6 @@
 "use client";
 
+import { insertActivityLog } from "@/lib/activity-log-api";
 import {
   deleteConventionRule,
   getConventionRules,
@@ -8,8 +9,11 @@ import {
   updateConventionRule,
 } from "@/lib/convention-api";
 import type { ConventionRule, TopicConventionOption } from "@/lib/database.types";
-import { Button, Form, Input, InputNumber, Modal, Select, Table } from "antd";
-import { useCallback, useEffect, useState } from "react";
+import { useCurrentUser } from "@/hooks/useCurrentUser";
+import { conventionApi } from "@/store/conventionApi";
+import { App, Button, Form, Input, InputNumber, Modal, Select, Table } from "antd";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { useDispatch } from "react-redux";
 import { toast } from "react-hot-toast";
 
 type FormValues = {
@@ -19,6 +23,9 @@ type FormValues = {
 };
 
 export function RuleSection() {
+  const { modal } = App.useApp();
+  const dispatch = useDispatch();
+  const { user } = useCurrentUser();
   const [rules, setRules] = useState<ConventionRule[]>([]);
   const [topics, setTopics] = useState<TopicConventionOption[]>([]);
   const [loading, setLoading] = useState(true);
@@ -51,6 +58,16 @@ export function RuleSection() {
   const getTopicTitle = (topicId: string) =>
     topics.find((t) => t.id === topicId)?.title ?? topicId;
 
+  /** เรียง rules ตามลำดับ topic แล้ว sort_order (สำหรับแสดง group ใน table) */
+  const sortedRules = useMemo(() => {
+    const order = new Map(topics.map((t, i) => [t.id, i]));
+    return [...rules].sort((a, b) => {
+      const oa = order.get(a.topic_id) ?? 0;
+      const ob = order.get(b.topic_id) ?? 0;
+      return oa === ob ? a.sort_order - b.sort_order : oa - ob;
+    });
+  }, [rules, topics]);
+
   const openAdd = () => {
     setEditing(null);
     form.setFieldsValue({
@@ -74,6 +91,7 @@ export function RuleSection() {
   const handleSubmit = async () => {
     const values = await form.validateFields();
     setSaving(true);
+    const actorName = user?.name ?? "unknown";
     try {
       if (editing) {
         await updateConventionRule(editing.id, {
@@ -82,6 +100,12 @@ export function RuleSection() {
           sort_order: values.sort_order,
         });
         toast.success("แก้ไข Rule สำเร็จ");
+        await insertActivityLog({
+          actor_name: actorName,
+          action_type: "setting_convention",
+          description: `แก้ไข Rule (Setting Convention) โดย ${actorName}`,
+          metadata: { section: "rule", id: editing.id },
+        });
       } else {
         await insertConventionRule({
           topic_id: values.topic_id,
@@ -89,7 +113,13 @@ export function RuleSection() {
           sort_order: values.sort_order,
         });
         toast.success("เพิ่ม Rule สำเร็จ");
+        await insertActivityLog({
+          actor_name: actorName,
+          action_type: "setting_convention",
+          description: `เพิ่ม Rule (Setting Convention) โดย ${actorName}`,
+        });
       }
+      dispatch(conventionApi.util.invalidateTags(["ConventionFormOptions"]));
       setModalOpen(false);
       load();
     } catch (err) {
@@ -100,16 +130,25 @@ export function RuleSection() {
   };
 
   const handleDelete = (row: ConventionRule) => {
-    Modal.confirm({
+    modal.confirm({
       title: "ยืนยันการลบ",
       content: `ต้องการลบ Rule "${row.rule_text}" ใช่หรือไม่?`,
       okText: "ลบ",
+      centered: true,
       okType: "danger",
       cancelText: "ยกเลิก",
       onOk: async () => {
         try {
           await deleteConventionRule(row.id);
+          const actorName = user?.name ?? "unknown";
+          await insertActivityLog({
+            actor_name: actorName,
+            action_type: "setting_convention",
+            description: `ลบ Rule (Setting Convention) โดย ${actorName}`,
+            metadata: { section: "rule", id: row.id },
+          });
           toast.success("ลบสำเร็จ");
+          dispatch(conventionApi.util.invalidateTags(["ConventionFormOptions"]));
           load();
         } catch (err) {
           toast.error(err instanceof Error ? err.message : "ลบไม่สำเร็จ");
@@ -123,7 +162,26 @@ export function RuleSection() {
       title: "Topic",
       dataIndex: "topic_id",
       key: "topic_id",
-      render: (id: string) => getTopicTitle(id),
+      width: 180,
+      render: (_: unknown, record: ConventionRule, index: number) => {
+        const isFirstInGroup =
+          index === 0 ||
+          sortedRules[index - 1].topic_id !== record.topic_id;
+        if (isFirstInGroup) {
+          const count = sortedRules.filter(
+            (r) => r.topic_id === record.topic_id
+          ).length;
+          return {
+            children: (
+              <span className="font-medium text-zinc-800 dark:text-zinc-200">
+                {getTopicTitle(record.topic_id)}
+              </span>
+            ),
+            props: { rowSpan: count },
+          };
+        }
+        return { props: { rowSpan: 0 } };
+      },
     },
     { title: "ข้อความกฎ", dataIndex: "rule_text", key: "rule_text" },
     { title: "ลำดับ", dataIndex: "sort_order", key: "sort_order", width: 80 },
@@ -164,13 +222,14 @@ export function RuleSection() {
           กรุณาเพิ่ม Topic ก่อนจึงจะเพิ่ม Rule ได้
         </p>
       )}
-      <Table
+      <Table<ConventionRule>
         rowKey="id"
         loading={loading}
-        dataSource={rules}
+        dataSource={sortedRules}
         columns={columns}
         pagination={false}
         size="small"
+        className="[&_.ant-table]:text-zinc-700 [&_.ant-table]:dark:text-zinc-300"
       />
       <Modal
         title={editing ? "แก้ไข Rule" : "เพิ่ม Rule"}

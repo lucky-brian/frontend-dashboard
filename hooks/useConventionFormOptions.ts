@@ -9,8 +9,8 @@ export type { SelectOption } from "@/store/conventionApi";
 export function useConventionFormOptions() {
   const { data, isLoading, error, isError } =
     useGetConventionFormOptionsQuery(undefined, {
-      // cache 60 นาที — ไม่ refetch ทุกครั้งที่เข้า convention
-      refetchOnMountOrArgChange: false,
+      // refetch ตอน mount — ถ้า cache ถูก invalidate จาก convention settings จะได้ข้อมูลใหม่
+      refetchOnMountOrArgChange: true,
       refetchOnFocus: false,
       refetchOnReconnect: false,
     });
