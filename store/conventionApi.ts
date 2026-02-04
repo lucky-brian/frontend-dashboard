@@ -1,5 +1,6 @@
 import {
   getActionRules,
+  getConventionTypeOptions,
   getFrontendMembers,
   getLatestConventionLogs,
   getMemberConventionSummaries,
@@ -16,13 +17,8 @@ export type SelectOption = { value: string; label: string };
 export type ConventionFormOptionsResult = {
   memberOptions: SelectOption[];
   typeOptions: SelectOption[];
-  topics: { id: string; title: string; type: "convention" | "delivery" }[];
+  topics: { id: string; title: string; type: string }[];
   actionRules: { id: string; topic_id: string; label: string }[];
-};
-
-const TYPE_LABELS: Record<string, string> = {
-  convention: "Convention",
-  delivery: "Delivery",
 };
 
 export const conventionApi = createApi({
@@ -36,19 +32,12 @@ export const conventionApi = createApi({
     >({
       queryFn: async () => {
         try {
-          const [members, topics, actionRules] = await Promise.all([
+          const [members, topics, actionRules, typeOptions] = await Promise.all([
             getFrontendMembers(),
             getTopicConventionOptions(),
             getActionRules(),
+            getConventionTypeOptions(),
           ]);
-
-          const typeSet = new Set(topics.map((t) => t.type));
-          const typeOptions: SelectOption[] = Array.from(typeSet).map(
-            (type) => ({
-              value: type,
-              label: TYPE_LABELS[type] ?? type,
-            })
-          );
 
           const data: ConventionFormOptionsResult = {
             memberOptions: members.map((m) => ({

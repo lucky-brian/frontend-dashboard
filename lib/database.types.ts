@@ -34,11 +34,37 @@ export interface Database {
           updated_at?: string;
         };
       };
+      convention_type: {
+        Row: {
+          id: string;
+          value: string;
+          label: string;
+          sort_order: number;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          value: string;
+          label: string;
+          sort_order?: number;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          value?: string;
+          label?: string;
+          sort_order?: number;
+          created_at?: string;
+          updated_at?: string;
+        };
+      };
       topic_convention_option: {
         Row: {
           id: string;
           title: string;
-          type: "convention" | "delivery";
+          type_id: string;
           sort_order: number;
           created_at: string;
           updated_at: string;
@@ -46,7 +72,7 @@ export interface Database {
         Insert: {
           id?: string;
           title: string;
-          type: "convention" | "delivery";
+          type_id: string;
           sort_order?: number;
           created_at?: string;
           updated_at?: string;
@@ -54,7 +80,7 @@ export interface Database {
         Update: {
           id?: string;
           title?: string;
-          type?: "convention" | "delivery";
+          type_id?: string;
           sort_order?: number;
           created_at?: string;
           updated_at?: string;
@@ -120,7 +146,7 @@ export interface Database {
           id: string;
           log_date: string;
           member_id: string;
-          type: "convention" | "delivery";
+          type: string;
           topic_id: string;
           action_rule_id: string;
           sprint: string | null;
@@ -131,7 +157,7 @@ export interface Database {
           id?: string;
           log_date: string;
           member_id: string;
-          type: "convention" | "delivery";
+          type: string;
           topic_id: string;
           action_rule_id: string;
           sprint?: string | null;
@@ -142,7 +168,7 @@ export interface Database {
           id?: string;
           log_date?: string;
           member_id?: string;
-          type?: "convention" | "delivery";
+          type?: string;
           topic_id?: string;
           action_rule_id?: string;
           sprint?: string | null;
@@ -173,6 +199,7 @@ export interface Database {
 
 /** Row types สำหรับใช้ใน component */
 export type FrontendMember = Database["public"]["Tables"]["frontend_member"]["Row"];
+export type ConventionType = Database["public"]["Tables"]["convention_type"]["Row"];
 export type TopicConventionOption =
   Database["public"]["Tables"]["topic_convention_option"]["Row"];
 export type ConventionRule = Database["public"]["Tables"]["convention_rules"]["Row"];

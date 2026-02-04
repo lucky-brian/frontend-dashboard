@@ -1,6 +1,8 @@
 import { createClient } from "@/lib/supabase";
 import type {
   ActionRule,
+  ConventionRule,
+  ConventionType,
   FrontendMember,
   MemberConventionSummary,
   TopicConventionOption,
@@ -52,17 +54,105 @@ export async function getMemberConventionSummaries(): Promise<
   }));
 }
 
-/** ดึงหัวข้อ convention ทั้งหมด (เรียงตาม sort_order) */
+/** ตัวเลือกประเภท Topic ใช้ในฟอร์ม Setting (ดึงจากตาราง convention_type) */
+export type ConventionTypeOption = { value: string; label: string };
+
+export async function getConventionTypeOptions(): Promise<
+  ConventionTypeOption[]
+> {
+  const supabase = createClient();
+  const { data, error } = await supabase
+    .from("convention_type")
+    .select("value, label")
+    .order("sort_order");
+  if (error) throw error;
+  return (data ?? []).map((r) => ({ value: r.value, label: r.label }));
+}
+
+/** ดึงประเภท convention ทั้งหมด (เรียงตาม sort_order) */
+export async function getConventionTypes(): Promise<ConventionType[]> {
+  const supabase = createClient();
+  const { data, error } = await supabase
+    .from("convention_type")
+    .select("id, value, label, sort_order, created_at, updated_at")
+    .order("sort_order");
+  if (error) throw error;
+  return (data ?? []) as ConventionType[];
+}
+
+/** เพิ่ม convention type */
+export async function insertConventionType(params: {
+  value: string;
+  label: string;
+  sort_order?: number;
+}): Promise<ConventionType> {
+  const supabase = createClient();
+  const { data, error } = await supabase
+    .from("convention_type")
+    .insert({
+      value: params.value,
+      label: params.label,
+      sort_order: params.sort_order ?? 0,
+    })
+    .select()
+    .single();
+  if (error) throw error;
+  return data as ConventionType;
+}
+
+/** แก้ไข convention type */
+export async function updateConventionType(
+  id: string,
+  params: { value?: string; label?: string; sort_order?: number }
+): Promise<ConventionType> {
+  const supabase = createClient();
+  const { data, error } = await supabase
+    .from("convention_type")
+    .update(
+      Object.fromEntries(
+        Object.entries(params).filter(([, v]) => v !== undefined)
+      )
+    )
+    .eq("id", id)
+    .select()
+    .single();
+  if (error) throw error;
+  return data as ConventionType;
+}
+
+/** ลบ convention type */
+export async function deleteConventionType(id: string): Promise<void> {
+  const supabase = createClient();
+  const { error } = await supabase
+    .from("convention_type")
+    .delete()
+    .eq("id", id);
+  if (error) throw error;
+}
+
+/** Topic พร้อม type (value) สำหรับ backward compatibility กับ form */
+export type TopicConventionOptionWithType = TopicConventionOption & {
+  type: string;
+};
+
+/** ดึงหัวข้อ convention ทั้งหมด (เรียงตาม sort_order) พร้อม type จาก convention_type */
 export async function getTopicConventionOptions(): Promise<
-  TopicConventionOption[]
+  TopicConventionOptionWithType[]
 > {
   const supabase = createClient();
   const { data, error } = await supabase
     .from("topic_convention_option")
-    .select("id, title, type, sort_order, created_at, updated_at")
+    .select("id, title, type_id, sort_order, created_at, updated_at, convention_type(value, label)")
     .order("sort_order");
   if (error) throw error;
-  return data ?? [];
+  const rows = (data ?? []) as (TopicConventionOption & {
+    convention_type: { value: string; label: string } | { value: string; label: string }[];
+  })[];
+  return rows.map((row) => {
+    const { convention_type: ct, ...rest } = row;
+    const typeValue = Array.isArray(ct) ? ct[0]?.value : ct?.value;
+    return { ...rest, type: typeValue ?? "" };
+  }) as TopicConventionOptionWithType[];
 }
 
 /** ดึง action rules ทั้งหมด (เรียงตาม topic แล้ว sort_order) */
@@ -77,10 +167,173 @@ export async function getActionRules(): Promise<ActionRule[]> {
   return data ?? [];
 }
 
+/** ดึง convention rules ทั้งหมด (เรียงตาม topic แล้ว sort_order) */
+export async function getConventionRules(): Promise<ConventionRule[]> {
+  const supabase = createClient();
+  const { data, error } = await supabase
+    .from("convention_rules")
+    .select("id, topic_id, rule_text, sort_order, created_at, updated_at")
+    .order("topic_id")
+    .order("sort_order");
+  if (error) throw error;
+  return data ?? [];
+}
+
+/** เพิ่ม topic convention */
+export async function insertTopicConventionOption(params: {
+  title: string;
+  type_id: string;
+  sort_order?: number;
+}): Promise<TopicConventionOption> {
+  const supabase = createClient();
+  const { data, error } = await supabase
+    .from("topic_convention_option")
+    .insert({
+      title: params.title,
+      type_id: params.type_id,
+      sort_order: params.sort_order ?? 0,
+    })
+    .select()
+    .single();
+  if (error) throw error;
+  return data as TopicConventionOption;
+}
+
+/** แก้ไข topic convention */
+export async function updateTopicConventionOption(
+  id: string,
+  params: { title?: string; type_id?: string; sort_order?: number }
+): Promise<TopicConventionOption> {
+  const supabase = createClient();
+  const { data, error } = await supabase
+    .from("topic_convention_option")
+    .update(
+      Object.fromEntries(
+        Object.entries(params).filter(([, v]) => v !== undefined)
+      )
+    )
+    .eq("id", id)
+    .select()
+    .single();
+  if (error) throw error;
+  return data as TopicConventionOption;
+}
+
+/** ลบ topic convention */
+export async function deleteTopicConventionOption(id: string): Promise<void> {
+  const supabase = createClient();
+  const { error } = await supabase
+    .from("topic_convention_option")
+    .delete()
+    .eq("id", id);
+  if (error) throw error;
+}
+
+/** เพิ่ม convention rule */
+export async function insertConventionRule(params: {
+  topic_id: string;
+  rule_text: string;
+  sort_order?: number;
+}): Promise<ConventionRule> {
+  const supabase = createClient();
+  const { data, error } = await supabase
+    .from("convention_rules")
+    .insert({
+      topic_id: params.topic_id,
+      rule_text: params.rule_text,
+      sort_order: params.sort_order ?? 0,
+    })
+    .select()
+    .single();
+  if (error) throw error;
+  return data as ConventionRule;
+}
+
+/** แก้ไข convention rule */
+export async function updateConventionRule(
+  id: string,
+  params: { topic_id?: string; rule_text?: string; sort_order?: number }
+): Promise<ConventionRule> {
+  const supabase = createClient();
+  const { data, error } = await supabase
+    .from("convention_rules")
+    .update(
+      Object.fromEntries(
+        Object.entries(params).filter(([, v]) => v !== undefined)
+      )
+    )
+    .eq("id", id)
+    .select()
+    .single();
+  if (error) throw error;
+  return data as ConventionRule;
+}
+
+/** ลบ convention rule */
+export async function deleteConventionRule(id: string): Promise<void> {
+  const supabase = createClient();
+  const { error } = await supabase.from("convention_rules").delete().eq("id", id);
+  if (error) throw error;
+}
+
+/** เพิ่ม action rule */
+export async function insertActionRule(params: {
+  topic_id: string;
+  label: string;
+  value: string;
+  sort_order?: number;
+}): Promise<ActionRule> {
+  const supabase = createClient();
+  const { data, error } = await supabase
+    .from("action_rules")
+    .insert({
+      topic_id: params.topic_id,
+      label: params.label,
+      value: params.value,
+      sort_order: params.sort_order ?? 0,
+    })
+    .select()
+    .single();
+  if (error) throw error;
+  return data as ActionRule;
+}
+
+/** แก้ไข action rule */
+export async function updateActionRule(
+  id: string,
+  params: {
+    topic_id?: string;
+    label?: string;
+    value?: string;
+    sort_order?: number;
+  }
+): Promise<ActionRule> {
+  const supabase = createClient();
+  const { data, error } = await supabase
+    .from("action_rules")
+    .update(
+      Object.fromEntries(
+        Object.entries(params).filter(([, v]) => v !== undefined)
+      )
+    )
+    .eq("id", id)
+    .select()
+    .single();
+  if (error) throw error;
+  return data as ActionRule;
+}
+
+/** ลบ action rule */
+export async function deleteActionRule(id: string): Promise<void> {
+  const supabase = createClient();
+  const { error } = await supabase.from("action_rules").delete().eq("id", id);
+  if (error) throw error;
+}
+
 export type InsertConventionLogParams = {
   log_date: string;
   member_id: string;
-  type: "convention" | "delivery";
+  type: string;
   topic_id: string;
   action_rule_id: string;
   sprint?: string | null;
@@ -137,7 +390,7 @@ export type ConventionLogWithDetails = {
   id: string;
   log_date: string;
   member_id: string;
-  type: "convention" | "delivery";
+  type: string;
   topic_id: string;
   action_rule_id: string;
   sprint: string | null;
