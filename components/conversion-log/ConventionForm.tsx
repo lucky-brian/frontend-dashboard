@@ -27,7 +27,7 @@ export type ReduxPointFormValues = {
 };
 
 function getDefaultValues(
-  initial?: ConventionLogWithDetails | null
+  initial?: ConventionLogWithDetails | null,
 ): ReduxPointFormValues {
   if (initial) {
     return {
@@ -97,6 +97,7 @@ export function ConventionForm({
 
   const onSave = async (data: ReduxPointFormValues) => {
     const date = data.date ?? dayjs();
+    const actorName = user?.name ?? "unknown";
     const params = {
       log_date: date.format("YYYY-MM-DD"),
       member_id: data.member,
@@ -105,25 +106,75 @@ export function ConventionForm({
       action_rule_id: data.action,
       sprint: data.sprint || null,
       notes: data.notes || null,
+      created_by: actorName,
     };
     try {
-      const actorName = user?.name ?? "unknown";
+      const memberName =
+        memberOptions.find((m) => m.value === data.member)?.label ??
+        data.member;
+      const typeLabel =
+        typeOptions.find((t) => t.value === data.type)?.label ?? data.type;
+      const topicTitle =
+        topicOptions.find((t) => t.value === data.topicRule)?.label ??
+        data.topicRule;
+      const actionLabel =
+        actionOptions.find((a) => a.value === data.action)?.label ??
+        data.action;
+      const parts = [
+        `วันที่ ${date.format("DD/MM/YYYY")}`,
+        `สมาชิก ${memberName}`,
+        `ประเภท ${typeLabel}`,
+        `หัวข้อ ${topicTitle}`,
+        `Action ${actionLabel}`,
+      ];
+      if (data.sprint) parts.push(`Sprint ${data.sprint}`);
+      if (data.notes) parts.push(`หมายเหตุ ${data.notes}`);
+      const contentSummary = parts.join(", ");
+
       if (mode === "edit" && initialData?.id) {
         await updateConventionLog(initialData.id, params);
         toast.success("แก้ไขสำเร็จ");
         await insertActivityLog({
           actor_name: actorName,
           action_type: "edit_convention_log",
-          description: `แก้ไข Convention Log โดย ${actorName}`,
+          description: `แก้ไข Convention โดย ${actorName}`,
           metadata: { log_id: initialData.id },
+        });
+        await insertActivityLog({
+          actor_name: actorName,
+          action_type: "edit_convention_log",
+          description: `แก้ไข Convention โดย ${actorName}: ${contentSummary}`,
+          metadata: {
+            added_convention: {
+              log_date: params.log_date,
+              member_name: memberName,
+              type: params.type,
+              topic_title: topicTitle,
+              action_label: actionLabel,
+              sprint: params.sprint,
+              notes: params.notes,
+            },
+          },
         });
       } else {
         await insertConventionLog(params);
         toast.success("บันทึกสำเร็จ");
+
         await insertActivityLog({
           actor_name: actorName,
           action_type: "add_convention_log",
-          description: `เพิ่ม Convention Log โดย ${actorName}`,
+          description: `เพิ่ม Convention โดย ${actorName}: ${contentSummary}`,
+          metadata: {
+            added_convention: {
+              log_date: params.log_date,
+              member_name: memberName,
+              type: params.type,
+              topic_title: topicTitle,
+              action_label: actionLabel,
+              sprint: params.sprint,
+              notes: params.notes,
+            },
+          },
         });
       }
       reset(getDefaultValues(null));
@@ -357,10 +408,15 @@ export function ConventionForm({
               />
             </Form.Item>
 
-            <Form.Item label="Sprint">
+            <Form.Item
+              label="Sprint *"
+              validateStatus={errors.sprint ? "error" : undefined}
+              help={errors.sprint?.message}
+            >
               <Controller
                 name="sprint"
                 control={control}
+                rules={{ required: "Please enter a sprint" }}
                 render={({ field }) => (
                   <Input
                     {...field}

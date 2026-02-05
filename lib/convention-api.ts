@@ -338,6 +338,7 @@ export type InsertConventionLogParams = {
   action_rule_id: string;
   sprint?: string | null;
   notes?: string | null;
+  created_by?: string | null;
 };
 
 /** บันทึก convention log */
@@ -353,6 +354,7 @@ export async function insertConventionLog(
     action_rule_id: params.action_rule_id,
     sprint: params.sprint ?? null,
     notes: params.notes ?? null,
+    created_by: params.created_by ?? null,
   });
   if (error) throw error;
 }

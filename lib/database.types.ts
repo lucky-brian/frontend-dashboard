@@ -151,6 +151,7 @@ export interface Database {
           action_rule_id: string;
           sprint: string | null;
           notes: string | null;
+          created_by: string | null;
           created_at: string;
         };
         Insert: {
@@ -162,6 +163,7 @@ export interface Database {
           action_rule_id: string;
           sprint?: string | null;
           notes?: string | null;
+          created_by?: string | null;
           created_at?: string;
         };
         Update: {
@@ -173,6 +175,7 @@ export interface Database {
           action_rule_id?: string;
           sprint?: string | null;
           notes?: string | null;
+          created_by?: string | null;
           created_at?: string;
         };
       };

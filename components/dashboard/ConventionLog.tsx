@@ -9,11 +9,12 @@ import {
 import { ConventionForm } from "@/components/conversion-log/ConventionForm";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
 import {
+  useGetConventionFormOptionsQuery,
   useGetLatestConventionLogsQuery,
   useGetMemberConventionSummariesQuery,
 } from "@/store/conventionApi";
 import { EllipsisOutlined, ExportOutlined, ReloadOutlined } from "@ant-design/icons";
-import { App, Button, DatePicker, Dropdown, Drawer, Modal, Table, Typography } from "antd";
+import { App, Button, DatePicker, Dropdown, Drawer, Modal, Select, Table, Typography } from "antd";
 import type { MenuProps } from "antd";
 import dayjs, { type Dayjs } from "dayjs";
 import { useCallback, useState } from "react";
@@ -91,8 +92,12 @@ export function ConventionLog() {
   const [editingRecord, setEditingRecord] = useState<ConventionLogWithDetails | null>(null);
   const [exportModalOpen, setExportModalOpen] = useState(false);
   const [exportDateRange, setExportDateRange] = useState<[Dayjs | null, Dayjs | null]>([null, null]);
+  const [exportMemberId, setExportMemberId] = useState<string | null>(null);
   const [exporting, setExporting] = useState(false);
 
+  const { data: formOptions } = useGetConventionFormOptionsQuery(undefined, {
+    refetchOnMountOrArgChange: false,
+  });
   const { data: logs = [], isLoading, error, refetch, isFetching } =
     useGetLatestConventionLogsQuery(undefined, {
       refetchOnMountOrArgChange: false,
@@ -225,17 +230,21 @@ export function ConventionLog() {
     try {
       const startStr = start.format("YYYY-MM-DD");
       const endStr = end.format("YYYY-MM-DD");
-      const logs = await getConventionLogsByDateRange(startStr, endStr);
+      let logs = await getConventionLogsByDateRange(startStr, endStr);
+      if (exportMemberId) {
+        logs = logs.filter((row) => row.member_id === exportMemberId);
+      }
       buildExcelAndDownload(logs, startStr, endStr);
       toast.success("Export สำเร็จ");
       setExportModalOpen(false);
       setExportDateRange([null, null]);
+      setExportMemberId(null);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Export ไม่สำเร็จ");
     } finally {
       setExporting(false);
     }
-  }, [exportDateRange, buildExcelAndDownload]);
+  }, [exportDateRange, exportMemberId, buildExcelAndDownload]);
 
   const getActionMenuItems = (record: ConventionLogWithDetails): MenuProps["items"] => [
     { key: "edit", label: "Edit", onClick: () => onEdit(record) },
@@ -313,24 +322,44 @@ export function ConventionLog() {
         onCancel={() => {
           setExportModalOpen(false);
           setExportDateRange([null, null]);
+          setExportMemberId(null);
         }}
         onOk={onExportConfirm}
         okText="Export"
         confirmLoading={exporting}
       >
-        <div className="py-2">
-          <Typography.Text className="mb-2 block text-zinc-600 dark:text-zinc-400">
-            เลือกช่วงวันที่ที่ต้องการ export
-          </Typography.Text>
-          <DatePicker.RangePicker
-            value={exportDateRange}
-            onChange={(dates) => setExportDateRange(dates ?? [null, null])}
-            format="DD/MM/YYYY"
-            className="w-full"
-            size="large"
-            disabledDate={(date) => date ? date.isAfter(dayjs(), "day") : false}
-          />
-          <Typography.Text type="secondary" className="mt-2 block text-xs">
+        <div className="space-y-4 py-2">
+          <div>
+            <Typography.Text className="mb-2 block text-zinc-600 dark:text-zinc-400">
+              เลือกช่วงวันที่ที่ต้องการ export
+            </Typography.Text>
+            <DatePicker.RangePicker
+              value={exportDateRange}
+              onChange={(dates) => setExportDateRange(dates ?? [null, null])}
+              format="DD/MM/YYYY"
+              className="w-full"
+              size="large"
+              disabledDate={(date) => date ? date.isAfter(dayjs(), "day") : false}
+            />
+          </div>
+          <div>
+            <Typography.Text className="mb-2 block text-zinc-600 dark:text-zinc-400">
+              ผู้ถูกกระทำ (กรองตามสมาชิก)
+            </Typography.Text>
+            <Select
+              placeholder="ทั้งหมด"
+              allowClear
+              value={exportMemberId}
+              onChange={(v) => setExportMemberId(v && v !== "" ? v : null)}
+              options={[
+                { value: "", label: "ทั้งหมด" },
+                ...(formOptions?.memberOptions ?? []),
+              ]}
+              className="w-full"
+              size="large"
+            />
+          </div>
+          <Typography.Text type="secondary" className="block text-xs">
             ไฟล์ Excel จะมี 2 sheet: Logs (รายการ log ในช่วงที่เลือก) และ Summary (สรุปจำนวนครั้งต่อคนในช่วงที่เลือก)
           </Typography.Text>
         </div>

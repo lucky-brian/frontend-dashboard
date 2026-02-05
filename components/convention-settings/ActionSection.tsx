@@ -11,10 +11,20 @@ import {
 import type { ActionRule, TopicConventionOption } from "@/lib/database.types";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
 import { conventionApi } from "@/store/conventionApi";
-import { App, Button, Form, Input, InputNumber, Modal, Select, Table } from "antd";
+import {
+  App,
+  Button,
+  Form,
+  Input,
+  InputNumber,
+  Modal,
+  Select,
+  Table,
+} from "antd";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useDispatch } from "react-redux";
 import { toast } from "react-hot-toast";
+import { ColumnType } from "antd/es/table";
 
 type FormValues = {
   topic_id: string;
@@ -161,7 +171,9 @@ export function ActionSection() {
             metadata: { section: "action", id: row.id },
           });
           toast.success("ลบสำเร็จ");
-          dispatch(conventionApi.util.invalidateTags(["ConventionFormOptions"]));
+          dispatch(
+            conventionApi.util.invalidateTags(["ConventionFormOptions"]),
+          );
           load();
         } catch (err) {
           toast.error(err instanceof Error ? err.message : "ลบไม่สำเร็จ");
@@ -176,24 +188,26 @@ export function ActionSection() {
       dataIndex: "topic_id",
       key: "topic_id",
       width: 180,
-      render: (_: unknown, record: ActionRule, index: number) => {
+      onCell: (record: ActionRule, index: number) => {
         const isFirstInGroup =
-          index === 0 ||
-          sortedActions[index - 1].topic_id !== record.topic_id;
+          index === 0 || sortedActions[index - 1].topic_id !== record.topic_id;
         if (isFirstInGroup) {
           const count = sortedActions.filter(
-            (r) => r.topic_id === record.topic_id
+            (r) => r.topic_id === record.topic_id,
           ).length;
-          return {
-            children: (
-              <span className="font-medium text-zinc-800 dark:text-zinc-200">
-                {getTopicTitle(record.topic_id)}
-              </span>
-            ),
-            props: { rowSpan: count },
-          };
+          return { rowSpan: count };
         }
-        return { props: { rowSpan: 0 } };
+        return { rowSpan: 0 };
+      },
+      render: (_: unknown, record: ActionRule, index: number) => {
+        const isFirstInGroup =
+          index === 0 || sortedActions[index - 1].topic_id !== record.topic_id;
+        if (!isFirstInGroup) return null;
+        return (
+          <span className="font-medium text-zinc-800 dark:text-zinc-200">
+            {getTopicTitle(record.topic_id)}
+          </span>
+        );
       },
     },
     { title: "Label", dataIndex: "label", key: "label" },
@@ -239,7 +253,7 @@ export function ActionSection() {
         rowKey="id"
         loading={loading}
         dataSource={sortedActions}
-        columns={columns}
+        columns={columns as ColumnType<ActionRule>[]}
         pagination={false}
         size="small"
         className="[&_.ant-table]:text-zinc-700 [&_.ant-table]:dark:text-zinc-300"
@@ -259,7 +273,11 @@ export function ActionSection() {
             label="Topic"
             rules={[{ required: true, message: "กรุณาเลือก Topic" }]}
           >
-            <Select options={topicOptions} placeholder="เลือก Topic" />
+            <Select
+              options={topicOptions}
+              placeholder="เลือก Topic"
+              size="large"
+            />
           </Form.Item>
           <Form.Item
             name="label"
@@ -269,7 +287,7 @@ export function ActionSection() {
             <Input placeholder="เช่น ระบุ type ของ commit ไม่ถูกต้อง" />
           </Form.Item>
           <Form.Item name="sort_order" label="ลำดับ" initialValue={0}>
-            <InputNumber min={0} className="w-full" />
+            <InputNumber min={0} className="w-full" size="large" />
           </Form.Item>
         </Form>
       </Modal>

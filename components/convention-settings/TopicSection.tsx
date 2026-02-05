@@ -9,10 +9,22 @@ import {
   updateTopicConventionOption,
 } from "@/lib/convention-api";
 import type { TopicConventionOptionWithType } from "@/lib/convention-api";
-import type { ConventionType, TopicConventionOption } from "@/lib/database.types";
+import type {
+  ConventionType,
+  TopicConventionOption,
+} from "@/lib/database.types";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
 import { conventionApi } from "@/store/conventionApi";
-import { App, Button, Form, Input, InputNumber, Modal, Select, Table } from "antd";
+import {
+  App,
+  Button,
+  Form,
+  Input,
+  InputNumber,
+  Modal,
+  Select,
+  Table,
+} from "antd";
 import { useCallback, useEffect, useState } from "react";
 import { useDispatch } from "react-redux";
 import { toast } from "react-hot-toast";
@@ -31,12 +43,15 @@ export function TopicSection() {
   const [types, setTypes] = useState<ConventionType[]>([]);
   const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
-  const [editing, setEditing] = useState<TopicConventionOptionWithType | null>(null);
+  const [editing, setEditing] = useState<TopicConventionOptionWithType | null>(
+    null,
+  );
   const [saving, setSaving] = useState(false);
   const [form] = Form.useForm<FormValues>();
 
   const typeOptions = types.map((t) => ({ value: t.id, label: t.label }));
-  const getTypeLabel = (typeId: string) => types.find((t) => t.id === typeId)?.label ?? typeId;
+  const getTypeLabel = (typeId: string) =>
+    types.find((t) => t.id === typeId)?.label ?? typeId;
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -138,7 +153,9 @@ export function TopicSection() {
             metadata: { section: "topic", id: row.id },
           });
           toast.success("ลบสำเร็จ");
-          dispatch(conventionApi.util.invalidateTags(["ConventionFormOptions"]));
+          dispatch(
+            conventionApi.util.invalidateTags(["ConventionFormOptions"]),
+          );
           load();
         } catch (err) {
           toast.error(err instanceof Error ? err.message : "ลบไม่สำเร็จ");
@@ -211,17 +228,21 @@ export function TopicSection() {
             label="หัวข้อ"
             rules={[{ required: true, message: "กรุณากรอกหัวข้อ" }]}
           >
-            <Input placeholder="เช่น Commit Message" />
+            <Input placeholder="เช่น Commit Message" size="large" />
           </Form.Item>
           <Form.Item
             name="type_id"
             label="ประเภท"
             rules={[{ required: true, message: "กรุณาเลือกประเภท" }]}
           >
-            <Select options={typeOptions} placeholder="เลือกประเภท" />
+            <Select
+              options={typeOptions}
+              placeholder="เลือกประเภท"
+              size="large"
+            />
           </Form.Item>
           <Form.Item name="sort_order" label="ลำดับ" initialValue={0}>
-            <InputNumber min={0} className="w-full" />
+            <InputNumber min={0} className="w-full" size="large" />
           </Form.Item>
         </Form>
       </Modal>

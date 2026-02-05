@@ -133,7 +133,9 @@ export function TypeSection() {
             metadata: { section: "type", id: row.id },
           });
           toast.success("ลบสำเร็จ");
-          dispatch(conventionApi.util.invalidateTags(["ConventionFormOptions"]));
+          dispatch(
+            conventionApi.util.invalidateTags(["ConventionFormOptions"]),
+          );
           load();
         } catch (err) {
           toast.error(err instanceof Error ? err.message : "ลบไม่สำเร็จ");
@@ -200,10 +202,10 @@ export function TypeSection() {
             label="Label"
             rules={[{ required: true, message: "กรุณากรอก label" }]}
           >
-            <Input placeholder="เช่น Convention, Delivery" />
+            <Input placeholder="เช่น Convention, Delivery" size="large" />
           </Form.Item>
           <Form.Item name="sort_order" label="ลำดับ" initialValue={0}>
-            <InputNumber min={0} className="w-full" />
+            <InputNumber min={0} className="w-full" size="large" />
           </Form.Item>
         </Form>
       </Modal>

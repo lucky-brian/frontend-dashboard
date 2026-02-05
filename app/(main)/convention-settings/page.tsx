@@ -1,7 +1,6 @@
 "use client";
 
 import { ActionSection } from "@/components/convention-settings/ActionSection";
-import { RuleSection } from "@/components/convention-settings/RuleSection";
 import { TopicSection } from "@/components/convention-settings/TopicSection";
 import { TypeSection } from "@/components/convention-settings/TypeSection";
 import { Tabs } from "antd";
@@ -27,11 +26,6 @@ export default function ConventionSettingsPage() {
             key: "topic",
             label: "Topic",
             children: <TopicSection />,
-          },
-          {
-            key: "rule",
-            label: "Rule",
-            children: <RuleSection />,
           },
           {
             key: "action",
